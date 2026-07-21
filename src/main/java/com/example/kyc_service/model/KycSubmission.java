@@ -101,4 +101,44 @@ public class KycSubmission {
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    // ── Factory method ────────────────────────────────────────────────────────
+
+    public static KycSubmission create(Long userId, String username, DocumentType documentType,
+                                       String fileKey, String fileMimeType, Long fileSizeBytes) {
+        KycSubmission s = new KycSubmission();
+        s.userId = userId;
+        s.username = username;
+        s.documentType = documentType;
+        s.fileKey = fileKey;
+        s.fileMimeType = fileMimeType;
+        s.fileSizeBytes = fileSizeBytes;
+        s.status = SubmissionStatus.IN_PROGRESS;
+        return s;
+    }
+
+    // ── Transições de status ──────────────────────────────────────────────────
+    public void markManualReview(String ocrText, double confidence) {
+        this.ocrRawText = ocrText != null && ocrText.length() > 2000
+                ? ocrText.substring(0, 2000)
+                : ocrText;
+        this.ocrConfidenceScore = confidence;
+        this.status = SubmissionStatus.MANUAL;
+    }
+
+    public void approve(Long analystId, String analystUsername, String note) {
+        this.analystId = analystId;
+        this.analystUsername = analystUsername;
+        this.analystNote = note;
+        this.status = SubmissionStatus.APPROVED;
+    }
+
+    public void reject(Long analystId, String analystUsername,
+                       RejectionReason reason, String note) {
+        this.analystId = analystId;
+        this.analystUsername = analystUsername;
+        this.rejectionReason = reason;
+        this.analystNote = note;
+        this.status = SubmissionStatus.REJECTED;
+    }
 }
