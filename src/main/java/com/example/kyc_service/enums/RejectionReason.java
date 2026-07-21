@@ -1,0 +1,12 @@
+package com.example.kyc_service.enums;
+
+public enum RejectionReason {
+    ILLEGIBLE_DOCUMENT,
+    EXPIRED_DOCUMENT,
+    DAMAGED_DOCUMENT,
+    INCONSISTENT_DATA,
+    INVALID_DOCUMENT,
+    LOW_QUALITY_PHOTO,
+    UNACCEPTED_DOCUMENT,
+    SUSPICION_OF_FRAUD
+}
