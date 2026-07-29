@@ -2,221 +2,238 @@
 
 A **Know Your Customer (KYC)** microservice responsible for document verification and identity validation.
 
-The service receives user-submitted documents, stores them securely, performs automated OCR-based validation, and routes submissions requiring manual review to authorized analysts.
+The service receives user-submitted documents, stores them securely in **MinIO**, performs **OCR-based analysis** using **Tesseract**, and routes submissions requiring manual review to authorized analysts.
 
-> 🚧 **Project Status:** This project is currently **under active development**. Features, endpoints, and workflows may change as development progresses.
-
-**Default Port:** `8083`
+> 🚧 **Project Status:** In development.
 
 ---
 
 # Features
 
-- 📄 Upload and securely store documents using MinIO
-- 🔍 Perform OCR processing asynchronously without blocking client requests
-- 🤖 Automatically approve or flag documents for manual review
-- 👨‍💼 Separate APIs for customers and KYC analysts
-- 📜 Maintain a complete audit trail of status changes
-- 🔐 Authenticate requests using JWT (shared with the Authentication Service)
+- Upload identity documents
+- Secure document storage with MinIO
+- OCR extraction using Tesseract
+- Automatic document validation
+- Manual review workflow
+- Submission history tracking
+- Analyst dashboard
+- JWT authentication
+- REST API for customers and analysts
 
 ---
 
-# Technology Stack
+# Supported Document Types
+
+| Document | Enum |
+|----------|------|
+| Identity Card | `ID_CARD` |
+| Driver License | `DRIVER_LICENSE` |
+| Passport | `PASSPORT` |
+| Bank Statement | `BANK_STATEMENT` |
+| Pay Slip | `PAY_SLIP` |
+| Utility Bill | `UTILITY_BILL` |
+| Phone Bill | `PHONE_BILL` |
+
+---
+
+# Tech Stack
 
 - Java 21
-- Spring Boot 4
-- Spring Security OAuth2 Resource Server
+- Spring Boot
+- Spring Security (OAuth2 Resource Server)
+- Spring Data JPA
 - MySQL
-- MinIO Object Storage
+- MinIO
 - Tess4J (Tesseract OCR)
 - Apache PDFBox
-
----
-
-# Prerequisites
-
-## Install Tesseract OCR
-
-Ubuntu/Debian:
-
-```bash
-sudo apt install tesseract-ocr tesseract-ocr-por
-```
-
----
-
-## Start MinIO
-
-```bash
-docker run -d \
-  -p 9000:9000 \
-  -p 9001:9001 \
-  -e MINIO_ROOT_USER=minioadmin \
-  -e MINIO_ROOT_PASSWORD=minioadmin \
-  quay.io/minio/minio server /data --console-address ":9001"
-```
-
----
-
-# Configuration
-
-```bash
-export DB_URL=jdbc:mysql://localhost:3306/kyc_db
-export DB_USER=root
-export DB_PASS=password
-
-export JWT_SECRET_BASE64=your_auth_service_secret
-
-export MINIO_ACCESS_KEY=minioadmin
-export MINIO_SECRET_KEY=minioadmin
-```
-
----
-
-# API
-
-## Customer Endpoints
-
-Base path:
-
-```
-/kyc/submissions
-```
-
-Accessible to any authenticated user.
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/kyc/submissions` | Submit a document |
-| GET | `/kyc/submissions` | List the authenticated user's submissions |
-| GET | `/kyc/submissions/{id}` | Retrieve submission details |
-
-### Upload Example
-
-```bash
-curl -X POST http://localhost:8083/kyc/submissions \
-  -H "Authorization: Bearer <token>" \
-  -F "file=@passport.jpg" \
-  -F "documentType=PASSPORT"
-```
-
----
-
-## Analyst Endpoints
-
-Base path:
-
-```
-/kyc/analyst
-```
-
-Requires one of the following roles:
-
-- `ROLE_KYC_ANALYST`
-- `ROLE_SUPERADMIN`
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/submissions` | Paginated list with filters |
-| GET | `/submissions/{id}` | Submission details including OCR results |
-| GET | `/submissions/{id}/document-url` | Generate a temporary document URL |
-| POST | `/submissions/{id}/decision` | Approve or reject a submission |
-| GET | `/submissions/{id}/history` | Retrieve status history |
-| GET | `/metrics` | Dashboard metrics grouped by status and document type |
-
----
-
-## Filtering
-
-Example:
-
-```http
-GET /kyc/analyst/submissions?status=MANUAL&documentType=PASSPORT&page=0&size=20
-```
-
----
-
-## Decision Request
-
-```json
-{
-  "action": "REJECT",
-  "rejectionReason": "DOCUMENT_UNREADABLE",
-  "note": "The uploaded image is out of focus."
-}
-```
-
-Supported actions:
-
-- `APPROVE`
-- `REJECT`
-
----
-
-# Workflow
-
-```
-NEW
-   │
-   ▼
-IN_PROGRESS
-   │
-   ├────────────► APPROVED
-   │
-   ▼
-MANUAL
-   │
-   ├────────────► APPROVED
-   │
-   └────────────► REJECTED
-```
-
-Customers only have access to the final verification status.
-
-Raw OCR output and internal analysis are only available to authorized analysts.
-
----
-
-# Running the Service
-
-```bash
-./mvnw spring-boot:run
-```
-
-The **Authentication Service** must be running before starting this application, since JWT tokens are validated using the same shared secret.
+- Maven
 
 ---
 
 # Architecture
 
 ```
-                Client
-                   │
-                   ▼
-             KYC Service
-                   │
-     ┌─────────────┴─────────────┐
-     │                           │
-     ▼                           ▼
-   MinIO                    OCR Engine
-(File Storage)         (Tesseract + PDFBox)
-     │                           │
-     └─────────────┬─────────────┘
-                   ▼
-                MySQL
+Client
+   │
+   ▼
+REST API
+   │
+   ├── Authentication (JWT)
+   ├── Upload
+   ├── OCR Analysis
+   ├── Validation
+   ├── Manual Review
+   └── MinIO Storage
 ```
+
+---
+
+# Project Structure
+
+```
+src
+├── config
+├── controller
+├── dto
+├── enums
+├── exception
+├── model
+├── repository
+├── security
+├── service
+│   ├── analysis
+│   ├── ocr
+│   └── storage
+└── test
+```
+
+---
+
+# Requirements
+
+- Java 21+
+- Maven 3.9+
+- Docker
+- Docker Compose
+- Tesseract OCR
+
+Ubuntu:
+
+```bash
+sudo apt install tesseract-ocr
+sudo apt install tesseract-ocr-por
+```
+
+---
+
+# Running with Docker
+
+Start MinIO and other services:
+
+```bash
+docker compose up -d
+```
+
+---
+
+# Configuration
+
+Configure the application using environment variables or your local `application.properties`.
+
+Example:
+
+```properties
+spring.datasource.url=...
+spring.datasource.username=...
+spring.datasource.password=...
+
+minio.endpoint=http://localhost:9000
+minio.access-key=********
+minio.secret-key=********
+
+spring.security.oauth2.resourceserver.jwt.secret-key=********
+```
+
+> **Important:** Never commit secrets or production credentials.
+
+---
+
+# Running the Application
+
+```bash
+./mvnw spring-boot:run
+```
+
+Default port:
+
+```
+8083
+```
+
+---
+
+# API Overview
+
+## Customer
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| POST | `/kyc/submissions` | Submit a document |
+| GET | `/kyc/submissions` | List user submissions |
+| GET | `/kyc/submissions/{id}` | Submission details |
+
+---
+
+## Analyst
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/kyc/analyst/submissions` | List submissions |
+| GET | `/kyc/analyst/submissions/{id}` | Submission details |
+| GET | `/kyc/analyst/submissions/{id}/document-url` | Temporary document URL |
+| POST | `/kyc/analyst/submissions/{id}/decision` | Approve or reject |
+| GET | `/kyc/analyst/submissions/{id}/history` | Submission history |
+| GET | `/kyc/analyst/metrics` | Dashboard metrics |
+
+---
+
+# Upload Example
+
+```bash
+curl -X POST http://localhost:8083/kyc/submissions \
+-H "Authorization: Bearer <token>" \
+-F "file=@passport.jpg" \
+-F "documentType=PASSPORT"
+```
+
+---
+
+# Security
+
+The service acts as an **OAuth2 Resource Server** and validates JWT access tokens.
+
+Authorization is role-based.
+
+Supported roles include:
+
+- `ROLE_USER`
+- `ROLE_KYC_ANALYST`
+- `ROLE_SUPERADMIN`
+
+---
+
+# Testing
+
+Run all tests:
+
+```bash
+./mvnw test
+```
+
+Current coverage includes:
+
+- OCR analysis
+- Document validation
+- Service layer
+- Unit tests
+
+> Integration tests for MinIO and OCR are planned.
 
 ---
 
 # Future Improvements
 
-Some planned features include:
+- Face Match (Selfie × Document)
+- Liveness Detection
+- Event-driven OCR processing
+- RabbitMQ / Kafka integration
+- Amazon S3 support
+- Azure Blob Storage support
+- Testcontainers integration
+- OCR confidence improvements
 
-- Document expiration validation
-- Face matching (Selfie × ID) -> I don't see this as a god idea.
-- Liveness detection
-- Support for additional document types -> Doing
-- Multi-language OCR -> Doing
-- AI-assisted document classification -> Badass move—I'll make it a priority
-- Integration with cloud storage providers (Amazon S3, Azure Blob Storage) -> Useless at the moment
-- Event-driven processing using RabbitMQ/Kafka -> useless at the moment
+---
+
+# License
+
+This project is intended for educational and portfolio purposes.
