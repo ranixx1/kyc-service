@@ -20,7 +20,8 @@ public class KycSubmission {
 
     private static final int OCR_TEXT_MAX_LENGTH = 2000;
 
-    private static final List<SubmissionStatus> ANALYST_DECIDABLE_STATUSES = List.of(
+    private static final List<SubmissionStatus> DECIDABLE_STATUSES = List.of(
+            SubmissionStatus.IN_PROGRESS,
             SubmissionStatus.MANUAL
     );
 
@@ -73,11 +74,8 @@ public class KycSubmission {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column(nullable = false)
-    private Integer resubmissionCount = 0;
-
-    @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true,
-               fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL,
+               orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("changedAt ASC")
     private List<KycStatusHistory> history = new ArrayList<>();
 
@@ -92,25 +90,21 @@ public class KycSubmission {
         updatedAt = LocalDateTime.now();
     }
 
-    // ── Factory ───────────────────────────────────────────────────────────────
-
     public static KycSubmission create(Long userId, String username, DocumentType documentType,
                                        String fileKey, String fileMimeType, Long fileSizeBytes) {
-        var submission = new KycSubmission();
-        submission.userId = userId;
-        submission.username = username;
-        submission.documentType = documentType;
-        submission.fileKey = fileKey;
-        submission.fileMimeType = fileMimeType;
-        submission.fileSizeBytes = fileSizeBytes;
-        return submission;
+        var s = new KycSubmission();
+        s.userId = userId;
+        s.username = username;
+        s.documentType = documentType;
+        s.fileKey = fileKey;
+        s.fileMimeType = fileMimeType;
+        s.fileSizeBytes = fileSizeBytes;
+        return s;
     }
 
-    // ── Transições de status ──────────────────────────────────────────────────
-
-    public void markPreApproved(String ocrText, double confidence) {
+    public void markInProgress(String ocrText, double confidence) {
         applyOcrResult(ocrText, confidence);
-        status = SubmissionStatus.APPROVED;
+        status = SubmissionStatus.IN_PROGRESS;
     }
 
     public void markManualReview(String ocrText, double confidence) {
@@ -130,10 +124,8 @@ public class KycSubmission {
     }
 
     public boolean isDecidable() {
-        return ANALYST_DECIDABLE_STATUSES.contains(status);
+        return DECIDABLE_STATUSES.contains(status);
     }
-
-    // ── Privados ──────────────────────────────────────────────────────────────
 
     private void applyOcrResult(String ocrText, double confidence) {
         ocrRawText = ocrText != null && ocrText.length() > OCR_TEXT_MAX_LENGTH

@@ -41,10 +41,10 @@ class DocumentAnalyzerTest {
         @DisplayName("passes RG when enough patterns match")
         void rgPasses() {
             when(ocrProvider.extract(any(), eq("image/jpeg")))
-                    .thenReturn("Registro Geral identidade República Federativa");
+                    .thenReturn("identity card identification Federativa");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.RG);
+                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
 
             assertThat(result.isPassed()).isTrue();
             assertThat(result.getConfidenceScore()).isGreaterThanOrEqualTo(0.5);
@@ -53,13 +53,13 @@ class DocumentAnalyzerTest {
         }
 
         @Test
-        @DisplayName("fails RG when too few patterns match")
-        void rgFails() {
+        @DisplayName("fails ID_CARD when too few patterns match")
+        void idCardFails() {
             when(ocrProvider.extract(any(), eq("image/jpeg")))
                     .thenReturn("lorem ipsum dolor sit amet");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.RG);
+                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getMatchedPatterns()).isEqualTo(0);
@@ -67,13 +67,15 @@ class DocumentAnalyzerTest {
         }
 
         @Test
-        @DisplayName("passes CPF when patterns match")
-        void cpfPasses() {
+        @DisplayName("passes BANK_STATEMENT when patterns match")
+        void bankStatementPasses() {
             when(ocrProvider.extract(any(), eq("image/jpeg")))
-                    .thenReturn("CPF Cadastro de Pessoas Físicas 123.456.789-00");
+                    .thenReturn("Bank Statement Account Statement");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.CPF);
+                    stream("irrelevant"),
+                    "image/jpeg",
+                    DocumentType.BANK_STATEMENT);
 
             assertThat(result.isPassed()).isTrue();
         }
@@ -93,16 +95,16 @@ class DocumentAnalyzerTest {
         @Test
         @DisplayName("confidence is calculated correctly")
         void confidenceCalculation() {
-            // RG has 4 patterns — matching 2 = 0.5 confidence = passed
+            // ID_CARD has 8 patterns — matching 2 = 0.25 confidence = passed
             when(ocrProvider.extract(any(), eq("image/jpeg")))
                     .thenReturn("registro geral identidade");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.RG);
+                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
 
-            assertThat(result.getConfidenceScore()).isEqualTo(0.5);
+            assertThat(result.getConfidenceScore()).isEqualTo(0.25);
             assertThat(result.getMatchedPatterns()).isEqualTo(2);
-            assertThat(result.getTotalPatterns()).isEqualTo(4);
+            assertThat(result.getTotalPatterns()).isEqualTo(8);
             assertThat(result.isPassed()).isTrue();
         }
 
@@ -112,7 +114,7 @@ class DocumentAnalyzerTest {
             when(ocrProvider.extract(any(), eq("image/jpeg"))).thenReturn("   ");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.RG);
+                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getConfidenceScore()).isEqualTo(0.0);
@@ -131,7 +133,7 @@ class DocumentAnalyzerTest {
                     .thenThrow(new OcrExtractionException("Tesseract crashed", new RuntimeException()));
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.RG);
+                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getRawText()).isNull();
@@ -145,7 +147,7 @@ class DocumentAnalyzerTest {
                     .thenThrow(new IllegalArgumentException("Unsupported mime type: image/gif"));
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/gif", DocumentType.RG);
+                    stream("irrelevant"), "image/gif", DocumentType.ID_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getSummary()).contains("Unsupported");
@@ -162,7 +164,7 @@ class DocumentAnalyzerTest {
             };
 
             DocumentAnalysis result = analyzer.analyze(
-                    brokenStream, "image/jpeg", DocumentType.RG);
+                    brokenStream, "image/jpeg", DocumentType.ID_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getSummary()).contains("Could not read file content");
@@ -176,11 +178,11 @@ class DocumentAnalyzerTest {
         @Test
         @DisplayName("rawText is populated on success")
         void rawTextPopulated() {
-            String expectedText = "registro geral identidade república";
+            String expectedText = "identity card identification";
             when(ocrProvider.extract(any(), any())).thenReturn(expectedText);
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.RG);
+                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
 
             assertThat(result.getRawText()).isEqualTo(expectedText);
         }
@@ -188,12 +190,51 @@ class DocumentAnalyzerTest {
         @Test
         @DisplayName("documentType is preserved in result")
         void documentTypePreserved() {
-            when(ocrProvider.extract(any(), any())).thenReturn("cnh detran habilitação");
+            when(ocrProvider.extract(any(), any())).thenReturn("Driver License driver's license");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.CNH);
+                    stream("irrelevant"), "image/jpeg", DocumentType.DRIVER_LICENSE);
 
-            assertThat(result.getDocumentType()).isEqualTo(DocumentType.CNH);
+            assertThat(result.getDocumentType()).isEqualTo(DocumentType.DRIVER_LICENSE);
+        }
+
+        @Test
+        void paySlipPasses() {
+            when(ocrProvider.extract(any(), eq("image/jpeg")))
+                    .thenReturn("Pay Slip Salary Slip");
+
+            DocumentAnalysis result = analyzer.analyze(
+                    stream("irrelevant"),
+                    "image/jpeg",
+                    DocumentType.PAY_SLIP);
+
+            assertThat(result.isPassed()).isTrue();
+        }
+
+        @Test
+        void utilityBillPasses() {
+            when(ocrProvider.extract(any(), eq("image/jpeg")))
+                    .thenReturn("Utility Bill Electricity Bill");
+
+            DocumentAnalysis result = analyzer.analyze(
+                    stream("irrelevant"),
+                    "image/jpeg",
+                    DocumentType.UTILITY_BILL);
+
+            assertThat(result.isPassed()).isTrue();
+        }
+
+        @Test
+        void phoneBillPasses() {
+            when(ocrProvider.extract(any(), eq("image/jpeg")))
+                    .thenReturn("Phone Bill Mobile Bill");
+
+            DocumentAnalysis result = analyzer.analyze(
+                    stream("irrelevant"),
+                    "image/jpeg",
+                    DocumentType.PHONE_BILL);
+
+            assertThat(result.isPassed()).isTrue();
         }
     }
 }

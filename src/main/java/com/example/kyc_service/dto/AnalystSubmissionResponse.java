@@ -22,7 +22,6 @@ public record AnalystSubmissionResponse(
         String analystUsername,
         RejectionReason rejectionReason,
         String analystNote,
-        Integer resubmissionCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -41,7 +40,6 @@ public record AnalystSubmissionResponse(
                 s.getAnalystUsername(),
                 s.getRejectionReason(),
                 s.getAnalystNote(),
-                s.getResubmissionCount(),
                 s.getCreatedAt(),
                 s.getUpdatedAt()
         );
