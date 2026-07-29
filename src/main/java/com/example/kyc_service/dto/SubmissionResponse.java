@@ -15,7 +15,6 @@ public record SubmissionResponse(
         RejectionReason rejectionReason,
         String analystNote,
         Long fileSizeBytes,
-        Integer resubmissionCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -27,7 +26,6 @@ public record SubmissionResponse(
                 s.getRejectionReason(),
                 s.getAnalystNote(),
                 s.getFileSizeBytes(),
-                s.getResubmissionCount(),
                 s.getCreatedAt(),
                 s.getUpdatedAt()
         );

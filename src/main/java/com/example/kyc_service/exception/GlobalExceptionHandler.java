@@ -24,9 +24,15 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<Map<String, Object>> handleStorage(StorageException ex) {
+        log.error("Storage error: {}", ex.getMessage(), ex);
+        return error(HttpStatus.BAD_GATEWAY, "Storage service unavailable. Please try again.");
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> handleMaxUpload(MaxUploadSizeExceededException ex) {
-        return error(HttpStatus.PAYLOAD_TOO_LARGE, "Arquivo excede o tamanho máximo permitido de 10 MB.");
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "File exceeds the maximum allowed size of 10 MB.");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -36,8 +42,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
-        log.error("Erro interno não tratado: {}", ex.getMessage(), ex);
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno do servidor.");
+        log.error("Unhandled internal error: {}", ex.getMessage(), ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error.");
     }
 
     private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
