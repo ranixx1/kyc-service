@@ -1,8 +1,10 @@
 package com.example.kyc_service.service.analysis;
 
 import com.example.kyc_service.enums.DocumentType;
-import com.example.kyc_service.service.ocr.OcrProvider;
 import com.example.kyc_service.exception.OcrExtractionException;
+import com.example.kyc_service.service.analysis.document.ExtractedDocument;
+import com.example.kyc_service.service.analysis.extractor.DocumentExtractor;
+import com.example.kyc_service.service.ocr.OcrProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,26 +12,22 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Orchestrates the document analysis pipeline.
  *
- * Current pipeline (Step 1):
+ * Current pipeline (Step 2):
  *   1. Extract raw text via OcrProvider
- *   2. Evaluate extracted text against expected patterns
- *   3. Produce a DocumentAnalysis result
+ *   2. Evaluate text against expected patterns (confidence score)
+ *   3. Run the appropriate DocumentExtractor
+ *   4. Produce a DocumentAnalysis with typed fields
  *
- * Future pipeline (Steps 3–6):
- *   1. Extract raw text via OcrProvider
- *   2. Classify document type (if not provided)
- *   3. Run the appropriate FieldExtractor
- *   4. Run the ValidationEngine
- *   5. Run FraudDetection
- *   6. Produce a DocumentAnalysis result with score
- *
- * This class knows about the pipeline. It does not know about HTTP,
- * persistence, or Spring Security — those concerns stay in the controller
- * and service layers.
+ * Future pipeline (Steps 5–7):
+ *   5. Run ValidationEngine against extracted fields
+ *   6. Run FraudDetection
+ *   7. Produce a score (0–100) alongside the pass/fail decision
  */
 @Service
 @RequiredArgsConstructor
@@ -39,19 +37,8 @@ public class DocumentAnalyzer {
     private static final double CONFIDENCE_THRESHOLD = 0.5;
 
     private final OcrProvider ocrProvider;
+    private final List<DocumentExtractor> extractors;
 
-    /**
-     * Analyzes a document from an InputStream.
-     *
-     * Always returns a DocumentAnalysis — never throws. If OCR fails,
-     * the result will have passed=false and a descriptive summary,
-     * routing the submission to MANUAL review.
-     *
-     * @param fileStream   the document content stream (caller must close it)
-     * @param mimeType     the document mime type
-     * @param documentType the declared document type
-     * @return the analysis result
-     */
     public DocumentAnalysis analyze(InputStream fileStream, String mimeType,
                                     DocumentType documentType) {
         log.info("Starting document analysis. documentType={}, mimeType={}", documentType, mimeType);
@@ -80,7 +67,16 @@ public class DocumentAnalyzer {
             return failedAnalysis(documentType, "", "OCR extracted no text from the document.");
         }
 
-        return evaluate(rawText, documentType);
+        DocumentAnalysis patternResult = evaluate(rawText, documentType);
+
+        // Only run field extraction if OCR confidence passed the threshold
+        if (!patternResult.isPassed()) {
+            log.info("Confidence too low for field extraction. documentType={}, confidence={}",
+                    documentType, patternResult.getConfidenceScore());
+            return patternResult;
+        }
+
+        return runExtraction(patternResult, rawText, documentType);
     }
 
     // ── Private ───────────────────────────────────────────────────────────────
@@ -102,8 +98,9 @@ public class DocumentAnalyzer {
                 : String.format("Failed. Only %d/%d patterns matched (confidence: %.0f%%). Manual review required.",
                         matchCount, patterns.length, confidence * 100);
 
-        log.info("Analysis complete. documentType={}, matched={}/{}, confidence={}, passed={}",
-                documentType, matchCount, patterns.length, confidence, passed);
+        log.info("Pattern evaluation complete. documentType={}, matched={}/{}, confidence={}, passed={}",
+                documentType, matchCount, patterns.length,
+                String.format("%.2f", confidence), passed);
 
         return DocumentAnalysis.builder()
                 .documentType(documentType)
@@ -114,6 +111,44 @@ public class DocumentAnalyzer {
                 .passed(passed)
                 .summary(summary)
                 .build();
+    }
+
+    private DocumentAnalysis runExtraction(DocumentAnalysis base, String rawText,
+                                           DocumentType documentType) {
+        DocumentExtractor extractor = extractors.stream()
+                .filter(e -> e.supports(documentType))
+                .findFirst()
+                .orElse(null);
+
+        if (extractor == null) {
+            log.warn("No extractor found for documentType={}. Returning pattern result.", documentType);
+            return base;
+        }
+
+        try {
+            ExtractedDocument extracted = extractor.extract(rawText);
+            Map<String, String> fields = extracted.toFieldMap();
+
+            log.info("Field extraction complete. documentType={}, fieldsExtracted={}",
+                    documentType, fields.size());
+
+            return DocumentAnalysis.builder()
+                    .documentType(base.getDocumentType())
+                    .rawText(base.getRawText())
+                    .confidenceScore(base.getConfidenceScore())
+                    .matchedPatterns(base.getMatchedPatterns())
+                    .totalPatterns(base.getTotalPatterns())
+                    .passed(base.isPassed())
+                    .summary(base.getSummary())
+                    .extractedDocument(extracted)
+                    .extractedFields(fields)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Field extraction failed. documentType={}: {}", documentType, e.getMessage(), e);
+            // Extraction failure does not fail the analysis — return the base result
+            return base;
+        }
     }
 
     private DocumentAnalysis failedAnalysis(DocumentType documentType,

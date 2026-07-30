@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -22,8 +23,7 @@ public class KycSubmission {
 
     private static final List<SubmissionStatus> DECIDABLE_STATUSES = List.of(
             SubmissionStatus.IN_PROGRESS,
-            SubmissionStatus.MANUAL
-    );
+            SubmissionStatus.MANUAL);
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -58,6 +58,15 @@ public class KycSubmission {
 
     private Double ocrConfidenceScore;
 
+    /**
+     * Extracted fields from the document, serialized as JSON.
+     * Populated after successful field extraction (Step 2).
+     * Example: {"holderName": "John Doe", "documentNumber": "AB123456"}
+     */
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = com.example.kyc_service.model.JsonMapConverter.class)
+    private Map<String, String> extractedFields;
+
     private Long analystId;
 
     private String analystUsername;
@@ -74,8 +83,7 @@ public class KycSubmission {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL,
-               orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("changedAt ASC")
     private List<KycStatusHistory> history = new ArrayList<>();
 
@@ -91,7 +99,7 @@ public class KycSubmission {
     }
 
     public static KycSubmission create(Long userId, String username, DocumentType documentType,
-                                       String fileKey, String fileMimeType, Long fileSizeBytes) {
+            String fileKey, String fileMimeType, Long fileSizeBytes) {
         var s = new KycSubmission();
         s.userId = userId;
         s.username = username;
@@ -110,6 +118,10 @@ public class KycSubmission {
     public void markManualReview(String ocrText, double confidence) {
         applyOcrResult(ocrText, confidence);
         status = SubmissionStatus.MANUAL;
+    }
+
+    public void applyExtractedFields(Map<String, String> fields) {
+        this.extractedFields = fields;
     }
 
     public void approve(Long analystId, String analystUsername, String note) {
