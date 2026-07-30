@@ -6,6 +6,7 @@ import com.example.kyc_service.enums.SubmissionStatus;
 import com.example.kyc_service.model.KycSubmission;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 public record AnalystSubmissionResponse(
@@ -18,6 +19,7 @@ public record AnalystSubmissionResponse(
         SubmissionStatus status,
         Double ocrConfidenceScore,
         String ocrRawText,
+        Map<String, String> extractedFields,
         Long analystId,
         String analystUsername,
         RejectionReason rejectionReason,
@@ -36,6 +38,7 @@ public record AnalystSubmissionResponse(
                 s.getStatus(),
                 s.getOcrConfidenceScore(),
                 s.getOcrRawText(),
+                s.getExtractedFields(),
                 s.getAnalystId(),
                 s.getAnalystUsername(),
                 s.getRejectionReason(),

@@ -17,17 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.InputStream;
 import java.util.UUID;
 
-/**
- * Handles asynchronous document processing after upload.
- *
- * Responsibilities:
- * - Download the file from MinIO
- * - Delegate analysis to DocumentAnalyzer
- * - Persist the result and update submission status
- *
- * This class knows nothing about OCR or business rules —
- * it only coordinates I/O and persistence.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -53,8 +42,6 @@ public class KycOcrProcessor {
         }
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
     @Transactional
     void persist(UUID submissionId, DocumentAnalysis analysis) {
         submissionRepository.findById(submissionId).ifPresent(submission -> {
@@ -66,12 +53,18 @@ public class KycOcrProcessor {
                 submission.markManualReview(analysis.getRawText(), analysis.getConfidenceScore());
             }
 
+            if (analysis.getExtractedFields() != null && !analysis.getExtractedFields().isEmpty()) {
+                submission.applyExtractedFields(analysis.getExtractedFields());
+            }
+
             submissionRepository.save(submission);
             historyRepository.save(
                     KycStatusHistory.system(submission, previous, submission.getStatus()));
 
-            log.info("Submission updated. id={}, status={}, summary={}",
-                    submissionId, submission.getStatus(), analysis.getSummary());
+            log.info("Submission updated. id={}, status={}, fieldsExtracted={}, summary={}",
+                    submissionId, submission.getStatus(),
+                    analysis.getExtractedFields() != null ? analysis.getExtractedFields().size() : 0,
+                    analysis.getSummary());
         });
     }
 
