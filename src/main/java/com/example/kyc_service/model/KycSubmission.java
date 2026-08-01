@@ -67,6 +67,9 @@ public class KycSubmission {
     @Convert(converter = com.example.kyc_service.model.JsonMapConverter.class)
     private Map<String, String> extractedFields;
 
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = JsonListConverter.class)
+    private List<String> validationErrors;
     private Long analystId;
 
     private String analystUsername;
@@ -122,6 +125,10 @@ public class KycSubmission {
 
     public void applyExtractedFields(Map<String, String> fields) {
         this.extractedFields = fields;
+    }
+
+    public void applyValidationErrors(List<String> errors) {
+        this.validationErrors = (errors == null || errors.isEmpty()) ? null : errors;
     }
 
     public void approve(Long analystId, String analystUsername, String note) {

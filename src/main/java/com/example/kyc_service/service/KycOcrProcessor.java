@@ -57,13 +57,19 @@ public class KycOcrProcessor {
                 submission.applyExtractedFields(analysis.getExtractedFields());
             }
 
+            if (analysis.getValidationResult() != null && analysis.getValidationResult().hasErrors()) {
+                submission.applyValidationErrors(analysis.getValidationResult().errors());
+            }
+
             submissionRepository.save(submission);
             historyRepository.save(
                     KycStatusHistory.system(submission, previous, submission.getStatus()));
 
-            log.info("Submission updated. id={}, status={}, fieldsExtracted={}, summary={}",
-                    submissionId, submission.getStatus(),
+            log.info("Submission updated. id={}, status={}, fieldsExtracted={}, validationErrors={}, summary={}",
+                    submissionId,
+                    submission.getStatus(),
                     analysis.getExtractedFields() != null ? analysis.getExtractedFields().size() : 0,
+                    analysis.getValidationResult() != null ? analysis.getValidationResult().errorCount() : 0,
                     analysis.getSummary());
         });
     }

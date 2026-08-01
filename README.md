@@ -1,50 +1,32 @@
-# KYC Service
+# kyc-service
 
-A **Know Your Customer (KYC)** microservice responsible for document verification and identity validation.
+A **Know Your Customer (KYC)** microservice for document verification and identity validation. Receives user-submitted documents, stores them securely in MinIO, runs automated OCR-based analysis, and routes submissions requiring human review to authorized analysts.
 
-The service receives user-submitted documents, stores them securely in **MinIO**, performs **OCR-based analysis** using **Tesseract**, and routes submissions requiring manual review to authorized analysts.
+> **Status:** Active development — features and endpoints may change.
 
-> 🚧 **Project Status:** In development.
-
----
-
-# Features
-
-- Upload identity documents
-- Secure document storage with MinIO
-- OCR extraction using Tesseract
-- Automatic document validation
-- Manual review workflow
-- Submission history tracking
-- Analyst dashboard
-- JWT authentication
-- REST API for customers and analysts
+**Default port:** `8083`
 
 ---
 
-# Supported Document Types
+## Features
 
-| Document | Enum |
-|----------|------|
-| Identity Card | `ID_CARD` |
-| Driver License | `DRIVER_LICENSE` |
-| Passport | `PASSPORT` |
-| Bank Statement | `BANK_STATEMENT` |
-| Pay Slip | `PAY_SLIP` |
-| Utility Bill | `UTILITY_BILL` |
-| Phone Bill | `PHONE_BILL` |
+- Upload and store documents securely via MinIO
+- Asynchronous OCR processing — client receives an immediate response
+- Automated field extraction per document type
+- Rule-based validation engine — extensible without modifying existing code
+- Separate APIs for customers and KYC analysts
+- Complete audit trail of every status change
+- JWT authentication shared with the Authentication Service
 
 ---
 
-# Tech Stack
+## Stack
 
-- Java 21
-- Spring Boot
-- Spring Security (OAuth2 Resource Server)
-- Spring Data JPA
+- Java 21 + Spring Boot 4
+- Spring Security OAuth2 Resource Server
 - MySQL
-- MinIO
-- Tess4J (Tesseract OCR)
+- MinIO (object storage)
+- Tess4J / Tesseract OCR
 - Apache PDFBox
 - Maven
 
@@ -103,6 +85,8 @@ Ubuntu:
 sudo apt install tesseract-ocr
 sudo apt install tesseract-ocr-por
 ```
+
+The MinIO console is available at `http://localhost:9001`.
 
 ---
 
