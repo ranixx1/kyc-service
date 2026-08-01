@@ -28,196 +28,231 @@ A **Know Your Customer (KYC)** microservice for document verification and identi
 - MinIO (object storage)
 - Tess4J / Tesseract OCR
 - Apache PDFBox
-- Maven
 
 ---
 
-# Architecture
+## Supported Document Types
 
-```
-Client
-   │
-   ▼
-REST API
-   │
-   ├── Authentication (JWT)
-   ├── Upload
-   ├── OCR Analysis
-   ├── Validation
-   ├── Manual Review
-   └── MinIO Storage
-```
+| Type | Description |
+|------|-------------|
+| `ID_CARD` | National identity card |
+| `DRIVER_LICENSE` | Driver's license |
+| `PASSPORT` | International passport |
+| `BANK_STATEMENT` | Bank account statement |
+| `PAY_SLIP` | Salary or pay slip |
+| `UTILITY_BILL` | Electricity, water or gas bill |
+| `PHONE_BILL` | Mobile or landline bill |
 
 ---
 
-# Project Structure
+## Prerequisites
 
-```
-src
-├── config
-├── controller
-├── dto
-├── enums
-├── exception
-├── model
-├── repository
-├── security
-├── service
-│   ├── analysis
-│   ├── ocr
-│   └── storage
-└── test
-```
-
----
-
-# Requirements
-
-- Java 21+
-- Maven 3.9+
-- Docker
-- Docker Compose
-- Tesseract OCR
-
-Ubuntu:
-
+**Tesseract OCR**
 ```bash
-sudo apt install tesseract-ocr
-sudo apt install tesseract-ocr-por
+sudo apt install tesseract-ocr tesseract-ocr-por tesseract-ocr-eng
+```
+
+**MinIO**
+```bash
+docker run -d \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  -e MINIO_ROOT_USER=minioadmin \
+  -e MINIO_ROOT_PASSWORD=minioadmin \
+  quay.io/minio/minio server /data --console-address ":9001"
 ```
 
 The MinIO console is available at `http://localhost:9001`.
 
 ---
 
-# Running with Docker
-
-Start MinIO and other services:
+## Configuration
 
 ```bash
-docker compose up -d
+export DB_URL=jdbc:mysql://localhost:3306/kyc_db
+export DB_USER=root
+export DB_PASS=password
+export JWT_SECRET_BASE64=your_shared_secret
+export MINIO_ACCESS_KEY=minioadmin
+export MINIO_SECRET_KEY=minioadmin
 ```
+
+The `JWT_SECRET_BASE64` must match the secret used by the Authentication Service.
 
 ---
 
-# Configuration
-
-Configure the application using environment variables or your local `application.properties`.
-
-Example:
-
-```properties
-spring.datasource.url=...
-spring.datasource.username=...
-spring.datasource.password=...
-
-minio.endpoint=http://localhost:9000
-minio.access-key=********
-minio.secret-key=********
-
-spring.security.oauth2.resourceserver.jwt.secret-key=********
-```
-
-> **Important:** Never commit secrets or production credentials.
-
----
-
-# Running the Application
+## Running
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Default port:
-
-```
-8083
-```
+The Authentication Service must be running before this service starts.
 
 ---
 
-# API Overview
-
-## Customer
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/kyc/submissions` | Submit a document |
-| GET | `/kyc/submissions` | List user submissions |
-| GET | `/kyc/submissions/{id}` | Submission details |
-
----
-
-## Analyst
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/kyc/analyst/submissions` | List submissions |
-| GET | `/kyc/analyst/submissions/{id}` | Submission details |
-| GET | `/kyc/analyst/submissions/{id}/document-url` | Temporary document URL |
-| POST | `/kyc/analyst/submissions/{id}/decision` | Approve or reject |
-| GET | `/kyc/analyst/submissions/{id}/history` | Submission history |
-| GET | `/kyc/analyst/metrics` | Dashboard metrics |
-
----
-
-# Upload Example
-
-```bash
-curl -X POST http://localhost:8083/kyc/submissions \
--H "Authorization: Bearer <token>" \
--F "file=@passport.jpg" \
--F "documentType=PASSPORT"
-```
-
----
-
-# Security
-
-The service acts as an **OAuth2 Resource Server** and validates JWT access tokens.
-
-Authorization is role-based.
-
-Supported roles include:
-
-- `ROLE_USER`
-- `ROLE_KYC_ANALYST`
-- `ROLE_SUPERADMIN`
-
----
-
-# Testing
-
-Run all tests:
+## Running Tests
 
 ```bash
 ./mvnw test
 ```
 
-Current coverage includes:
-
-- OCR analysis
-- Document validation
-- Service layer
-- Unit tests
-
-> Integration tests for MinIO and OCR are planned.
+All unit tests run without MinIO, MySQL, or Tesseract installed.
 
 ---
 
-# Future Improvements
+## API
 
-- Face Match (Selfie × Document)
-- Liveness Detection
-- Event-driven OCR processing
-- RabbitMQ / Kafka integration
-- Amazon S3 support
-- Azure Blob Storage support
-- Testcontainers integration
-- OCR confidence improvements
+### Customer Endpoints — `/kyc/submissions`
+
+Any authenticated user. Each user only sees their own submissions.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/kyc/submissions` | Submit a document for verification |
+| `GET` | `/kyc/submissions` | List own submissions |
+| `GET` | `/kyc/submissions/{id}` | Submission details |
+
+**Upload example:**
+```bash
+curl -X POST http://localhost:8083/kyc/submissions \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@passport.jpg" \
+  -F "documentType=PASSPORT"
+```
+
+Accepted formats: `JPG`, `PNG`, `PDF` — maximum 10 MB.
 
 ---
 
-# License
+### Analyst Endpoints — `/kyc/analyst`
 
-This project is intended for educational and portfolio purposes.
+Requires `ROLE_KYC_ANALYST`, `ROLE_ADMIN`, or `ROLE_SUPERADMIN`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/kyc/analyst/submissions` | Paginated list with filters |
+| `GET` | `/kyc/analyst/submissions/{id}` | Full details including OCR text and extracted fields |
+| `GET` | `/kyc/analyst/submissions/{id}/document-url` | Temporary URL to view the document (15 min) |
+| `POST` | `/kyc/analyst/submissions/{id}/decision` | Approve or reject |
+| `GET` | `/kyc/analyst/submissions/{id}/history` | Full status history |
+| `GET` | `/kyc/analyst/metrics` | Totals grouped by status and document type |
+
+**Filtering:**
+```
+GET /kyc/analyst/submissions?status=MANUAL&documentType=PASSPORT&page=0&size=20&sortBy=createdAt&sortDir=asc
+```
+
+**Decision payload:**
+```json
+{
+  "action": "REJECT",
+  "rejectionReason": "EXPIRED_DOCUMENT",
+  "note": "Document expired on 01/01/2023."
+}
+```
+
+Supported actions: `APPROVE`, `REJECT`.
+
+---
+
+## Submission Status Flow
+
+```
+NEW
+ │
+ ├─ OCR passed ──► IN_PROGRESS ──► APPROVED
+ │                                 REJECTED
+ │
+ └─ OCR failed ──► MANUAL ──────► APPROVED
+                                   REJECTED
+```
+
+Customers see only the terminal status. OCR text, extracted fields, and validation errors are visible only to analysts.
+
+---
+
+## Architecture
+
+The service follows a layered pipeline. Each stage is independent and replaceable.
+
+```
+Upload
+  │
+  ▼
+MinIO (storage)
+  │
+  ▼
+OcrProvider (Tesseract)
+  │
+  ▼
+DocumentAnalyzer
+  ├── DocumentExtractor   → typed field extraction per document type
+  └── ValidationEngine   → rule-based validation (one rule = one class)
+  │
+  ▼
+Decision (IN_PROGRESS or MANUAL)
+  │
+  ▼
+MySQL + Audit Trail
+```
+
+**Adding a new document type** requires:
+1. A value in the `DocumentType` enum with `expectedPatterns()`
+2. A typed model implementing `ExtractedDocument`
+3. A `DocumentExtractor` implementation annotated with `@Component`
+4. Any applicable `ValidationRule` implementations annotated with `@Component`
+
+No other changes are required — Spring auto-discovers all components.
+
+---
+
+## Project Structure
+
+```
+src/main/java/com/example/kyc_service/
+├── config/
+├── controller/
+│   ├── KycClientController.java
+│   └── KycAnalystController.java
+├── dto/
+├── enums/
+│   ├── DocumentType.java
+│   ├── RejectionReason.java
+│   └── SubmissionStatus.java
+├── exception/
+├── model/
+│   ├── KycSubmission.java
+│   ├── KycStatusHistory.java
+│   ├── JsonMapConverter.java
+│   └── JsonListConverter.java
+├── repository/
+├── service/
+│   ├── KycSubmissionService.java
+│   ├── KycOcrProcessor.java
+│   ├── analysis/
+│   │   ├── DocumentAnalyzer.java
+│   │   ├── DocumentAnalysis.java
+│   │   ├── document/         ← typed document models
+│   │   ├── extractor/        ← per-type field extractors
+│   │   └── validation/       ← rule engine + rules
+│   └── ocr/
+│       ├── OcrProvider.java  ← interface
+│       └── TesseractOcrProvider.java
+└── storage/
+    └── MinioStorageService.java
+```
+
+---
+
+## Roadmap
+
+- [x] OCR separation from business logic
+- [x] Per-type field extraction
+- [x] Rule-based validation engine
+- [ ] Validation score (0–100)
+- [ ] Fraud detection layer
+- [ ] Automatic document classification
+- [ ] AI-assisted OCR correction
+- [ ] Cloud storage support (S3, Azure Blob)
+- [ ] Event-driven processing (RabbitMQ / Kafka)
