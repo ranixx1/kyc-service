@@ -251,7 +251,7 @@ src/main/java/com/example/kyc_service/
 - [x] Per-type field extraction
 - [x] Rule-based validation engine
 - [ ] Validation score (0–100)
-- [ ] Fraud detection layer
+- [x] Fraud detection layer
 - [ ] Automatic document classification
 - [ ] AI-assisted OCR correction
 - [ ] Cloud storage support (S3, Azure Blob)
