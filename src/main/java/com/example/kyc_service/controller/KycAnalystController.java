@@ -61,7 +61,7 @@ public class KycAnalystController {
             @Valid @RequestBody AnalystDecisionRequest request,
             @AuthenticationPrincipal Jwt jwt) {
 
-        Long analystId = jwt.getClaim("userId");
+        Long analystId = extractUserId(jwt);
         String analystUsername = jwt.getSubject();
         return ResponseEntity.ok(service.processDecision(id, request, analystId, analystUsername));
     }
@@ -74,5 +74,48 @@ public class KycAnalystController {
     @GetMapping("/metrics")
     public ResponseEntity<KycMetricsResponse> metrics() {
         return ResponseEntity.ok(service.getMetrics());
+    }
+
+    // ── Expected data (pre-registration for auto-decision) ──────────────────────
+
+    @PostMapping("/expected-data")
+    public ResponseEntity<ExpectedDataResponse> registerExpectedData(
+            @Valid @RequestBody RegisterExpectedDataRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Long analystId = extractUserId(jwt);
+        String analystUsername = jwt.getSubject();
+        return ResponseEntity.status(201)
+                .body(service.registerExpectedData(request, analystId, analystUsername));
+    }
+
+    @GetMapping("/expected-data")
+    public ResponseEntity<List<ExpectedDataResponse>> listExpectedData(
+            @RequestParam Long userId) {
+        return ResponseEntity.ok(service.listExpectedData(userId));
+    }
+
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    /**
+     * Robust userId extraction from the JWT claim.
+     * Same fix already applied to KycClientController#submit(): the raw claim
+     * can come back as Integer, Long or String depending on how the auth-service
+     * serialized it, so a bare `jwt.getClaim("userId")` cast risks a
+     * ClassCastException at runtime. This mirrors that logic so both
+     * controllers behave consistently.
+     */
+    private Long extractUserId(Jwt jwt) {
+        Object raw = jwt.getClaim("userId");
+        if (raw == null) raw = jwt.getClaim("id");
+        if (raw == null) raw = jwt.getClaim("user_id");
+
+        if (raw instanceof Number number) {
+            return number.longValue();
+        }
+        if (raw instanceof String str) {
+            return Long.parseLong(str);
+        }
+        throw new IllegalArgumentException("O claim com o ID do usuário não foi encontrado no JWT.");
     }
 }

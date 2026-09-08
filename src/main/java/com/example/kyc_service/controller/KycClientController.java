@@ -27,33 +27,14 @@ public class KycClientController {
             @RequestParam("documentType") DocumentType documentType,
             @AuthenticationPrincipal Jwt jwt) {
 
-        // ADICIONE ESTA LINHA PARA VER NO TERMINAL:
-        System.out.println(">>> CLAIMS PRESENTES NO JWT: " + jwt.getClaims());
-
-        Object rawUserId = jwt.getClaim("userId");
-        if (rawUserId == null)
-            rawUserId = jwt.getClaim("id");
-        if (rawUserId == null)
-            rawUserId = jwt.getClaim("user_id");
-        Long userId = null;
-        if (rawUserId instanceof Number number) {
-            userId = number.longValue();
-        } else if (rawUserId instanceof String str) {
-            userId = Long.parseLong(str);
-        }
-
-        // Validação preventiva para não estourar erro 500 no MySQL
-        if (userId == null) {
-            throw new IllegalArgumentException("O claim com o ID do usuário não foi encontrado no JWT.");
-        }
-
+        Long userId = extractUserId(jwt);
         String username = jwt.getSubject();
         return ResponseEntity.status(201).body(service.submit(file, documentType, userId, username));
     }
 
     @GetMapping
     public ResponseEntity<List<SubmissionResponse>> listMine(@AuthenticationPrincipal Jwt jwt) {
-        Long userId = jwt.getClaim("userId");
+        Long userId = extractUserId(jwt);
         return ResponseEntity.ok(service.listMySubmissions(userId));
     }
 
@@ -61,7 +42,30 @@ public class KycClientController {
     public ResponseEntity<SubmissionResponse> getMine(
             @PathVariable UUID id,
             @AuthenticationPrincipal Jwt jwt) {
-        Long userId = jwt.getClaim("userId");
+        Long userId = extractUserId(jwt);
         return ResponseEntity.ok(service.getMySubmission(id, userId));
+    }
+
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    /**
+     * Robust userId extraction from the JWT claim.
+     * The raw claim can come back as Integer, Long or String depending on how
+     * the auth-service serialized it — a bare `jwt.getClaim("userId")` cast to
+     * Long risks a ClassCastException at runtime. Applied consistently across
+     * every endpoint here (previously only submit() had this handling).
+     */
+    private Long extractUserId(Jwt jwt) {
+        Object raw = jwt.getClaim("userId");
+        if (raw == null) raw = jwt.getClaim("id");
+        if (raw == null) raw = jwt.getClaim("user_id");
+
+        if (raw instanceof Number number) {
+            return number.longValue();
+        }
+        if (raw instanceof String str) {
+            return Long.parseLong(str);
+        }
+        throw new IllegalArgumentException("O claim com o ID do usuário não foi encontrado no JWT.");
     }
 }

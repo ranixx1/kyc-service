@@ -60,7 +60,7 @@ class ExpiryDateNotExpiredRuleTest {
     @Test
     @DisplayName("supports identity document types only")
     void supportsCorrectTypes() {
-        assertThat(rule.supports(DocumentType.ID_CARD)).isTrue();
+        assertThat(rule.supports(DocumentType.IDENTITY_CARD)).isTrue();
         assertThat(rule.supports(DocumentType.DRIVER_LICENSE)).isTrue();
         assertThat(rule.supports(DocumentType.PASSPORT)).isTrue();
         assertThat(rule.supports(DocumentType.BANK_STATEMENT)).isFalse();

@@ -20,7 +20,7 @@ public class IdentityDocument implements ExtractedDocument {
 
     @Override
     public DocumentType getType() {
-        return DocumentType.ID_CARD;
+        return DocumentType.IDENTITY_CARD;
     }
 
     @Override

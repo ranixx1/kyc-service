@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 public class SuspiciousDocumentNumberPatternRule implements FraudRule {
 
     private static final List<DocumentType> SUPPORTED = List.of(
-            DocumentType.ID_CARD,
+            DocumentType.IDENTITY_CARD,
             DocumentType.DRIVER_LICENSE,
             DocumentType.PASSPORT
     );

@@ -37,7 +37,7 @@ public class KycSubmission {
     private String username;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "document_type", length = 50, nullable = false)
     private DocumentType documentType;
 
     @Column(nullable = false)
@@ -70,6 +70,16 @@ public class KycSubmission {
     @Column(columnDefinition = "TEXT")
     @Convert(converter = JsonListConverter.class)
     private List<String> validationErrors;
+
+    /**
+     * Fraud indicators found by the FraudDetectionEngine (Step 4).
+     * Null/empty means clean. Populated regardless of validation outcome,
+     * since it's useful context for the analyst even when already MANUAL.
+     */
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = JsonListConverter.class)
+    private List<String> fraudIndicators;
+
     private Long analystId;
 
     private String analystUsername;
@@ -129,6 +139,10 @@ public class KycSubmission {
 
     public void applyValidationErrors(List<String> errors) {
         this.validationErrors = (errors == null || errors.isEmpty()) ? null : errors;
+    }
+
+    public void applyFraudIndicators(List<String> indicators) {
+        this.fraudIndicators = (indicators == null || indicators.isEmpty()) ? null : indicators;
     }
 
     public void approve(Long analystId, String analystUsername, String note) {

@@ -16,7 +16,7 @@ import java.util.Optional;
 public class ExpiryDatePresentRule implements ValidationRule {
 
     private static final List<DocumentType> SUPPORTED = List.of(
-            DocumentType.ID_CARD,
+            DocumentType.IDENTITY_CARD,
             DocumentType.DRIVER_LICENSE,
             DocumentType.PASSPORT,
             DocumentType.UTILITY_BILL,

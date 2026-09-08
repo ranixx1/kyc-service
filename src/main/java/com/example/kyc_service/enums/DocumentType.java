@@ -2,7 +2,7 @@ package com.example.kyc_service.enums;
 
 public enum DocumentType {
 
-        ID_CARD,
+        IDENTITY_CARD,
         DRIVER_LICENSE,
         PASSPORT,
         BANK_STATEMENT,
@@ -12,7 +12,7 @@ public enum DocumentType {
 
         public String[] expectedPatterns() {
                 return switch (this) {
-                        case ID_CARD -> new String[] {
+                        case IDENTITY_CARD -> new String[] {
                                         "identity",
                                         "identity card",
                                         "id card",
