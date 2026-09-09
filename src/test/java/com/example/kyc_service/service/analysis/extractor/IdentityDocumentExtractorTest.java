@@ -22,7 +22,7 @@ class IdentityDocumentExtractorTest {
     @Test
     @DisplayName("supports ID_CARD only")
     void supportsIdCard() {
-        assertThat(extractor.supports(com.example.kyc_service.enums.DocumentType.ID_CARD)).isTrue();
+        assertThat(extractor.supports(com.example.kyc_service.enums.DocumentType.IDENTITY_CARD)).isTrue();
         assertThat(extractor.supports(com.example.kyc_service.enums.DocumentType.PASSPORT)).isFalse();
     }
 

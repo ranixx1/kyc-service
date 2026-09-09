@@ -5,8 +5,10 @@ import com.example.kyc_service.enums.DocumentType;
 import com.example.kyc_service.enums.SubmissionStatus;
 import com.example.kyc_service.exception.KycBusinessException;
 import com.example.kyc_service.exception.SubmissionNotFoundException;
+import com.example.kyc_service.model.KycExpectedData;
 import com.example.kyc_service.model.KycStatusHistory;
 import com.example.kyc_service.model.KycSubmission;
+import com.example.kyc_service.repository.KycExpectedDataRepository;
 import com.example.kyc_service.repository.KycStatusHistoryRepository;
 import com.example.kyc_service.repository.KycSubmissionRepository;
 import com.example.kyc_service.storage.MinioStorageService;
@@ -21,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -41,8 +44,15 @@ public class KycSubmissionService {
             SubmissionStatus.MANUAL
     );
 
+    // Same restriction as KycAutoDecisionEngine: only identity documents carry a
+    // clear "expected holder name + document number" pair worth pre-registering.
+    private static final Set<DocumentType> EXPECTED_DATA_SUPPORTED_TYPES = Set.of(
+            DocumentType.IDENTITY_CARD, DocumentType.DRIVER_LICENSE, DocumentType.PASSPORT
+    );
+
     private final KycSubmissionRepository submissionRepository;
     private final KycStatusHistoryRepository historyRepository;
+    private final KycExpectedDataRepository expectedDataRepository;
     private final MinioStorageService storageService;
     private final KycOcrProcessor ocrProcessor;
 
@@ -134,6 +144,44 @@ public class KycSubmissionService {
         return historyRepository.findBySubmissionIdOrderByChangedAtAsc(id)
                 .stream()
                 .map(StatusHistoryResponse::from)
+                .toList();
+    }
+
+    // ── Expected data (pre-registration for auto-decision) ──────────────────────
+
+    @Transactional
+    public ExpectedDataResponse registerExpectedData(RegisterExpectedDataRequest request,
+                                                      Long analystId, String analystUsername) {
+        if (!EXPECTED_DATA_SUPPORTED_TYPES.contains(request.documentType())) {
+            throw new KycBusinessException(
+                    "Expected data can only be registered for ID_CARD, DRIVER_LICENSE or PASSPORT. Got: "
+                            + request.documentType());
+        }
+
+        boolean alreadyPending = expectedDataRepository.existsByUserIdAndDocumentTypeAndConsumedFalse(
+                request.userId(), request.documentType());
+        if (alreadyPending) {
+            throw new KycBusinessException(
+                    "There is already a pending (unconsumed) expected-data record for userId="
+                            + request.userId() + " and documentType=" + request.documentType()
+                            + ". Wait for it to be consumed, or remove the flow if it's outdated.");
+        }
+
+        KycExpectedData saved = expectedDataRepository.save(KycExpectedData.create(
+                request.userId(), request.documentType(),
+                request.expectedHolderName(), request.expectedDocumentNumber(),
+                analystId, analystUsername));
+
+        log.info("Expected data registered. userId={}, documentType={}, registeredBy={}",
+                request.userId(), request.documentType(), analystUsername);
+        return ExpectedDataResponse.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExpectedDataResponse> listExpectedData(Long userId) {
+        return expectedDataRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(ExpectedDataResponse::from)
                 .toList();
     }
 

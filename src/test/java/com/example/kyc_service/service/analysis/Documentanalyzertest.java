@@ -5,6 +5,8 @@ import com.example.kyc_service.exception.OcrExtractionException;
 import com.example.kyc_service.service.analysis.document.ExtractedDocument;
 import com.example.kyc_service.service.analysis.document.IdentityDocument;
 import com.example.kyc_service.service.analysis.extractor.DocumentExtractor;
+import com.example.kyc_service.service.analysis.fraud.FraudDetectionEngine;
+import com.example.kyc_service.service.analysis.fraud.FraudDetectionResult;
 import com.example.kyc_service.service.analysis.validation.ValidationEngine;
 import com.example.kyc_service.service.analysis.validation.ValidationResult;
 import com.example.kyc_service.service.ocr.OcrProvider;
@@ -32,13 +34,17 @@ class DocumentAnalyzerTest {
     @Mock OcrProvider ocrProvider;
     @Mock DocumentExtractor extractor;
     @Mock ValidationEngine validationEngine;
+    @Mock FraudDetectionEngine fraudDetectionEngine;
 
     // Construído manualmente para injetar o mock dentro da List<DocumentExtractor>
     DocumentAnalyzer analyzer;
 
     @BeforeEach
     void setUp() {
-        analyzer = new DocumentAnalyzer(ocrProvider, List.of(extractor), validationEngine);
+        analyzer = new DocumentAnalyzer(ocrProvider, List.of(extractor), validationEngine, fraudDetectionEngine);
+        // Default: fraud detection comes back clean unless a test overrides it.
+        // lenient() because several tests never reach extraction, so never call detect().
+        lenient().when(fraudDetectionEngine.detect(any(), any())).thenReturn(FraudDetectionResult.clean());
     }
 
     // Texto com padrões suficientes para passar o threshold de 50% no ID_CARD (8 padrões)
@@ -70,7 +76,7 @@ class DocumentAnalyzerTest {
                     .thenThrow(new OcrExtractionException("Tesseract crashed", new RuntimeException()));
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getRawText()).isNull();
@@ -85,7 +91,7 @@ class DocumentAnalyzerTest {
                     .thenThrow(new IllegalArgumentException("Unsupported mime type: image/gif"));
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/gif", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/gif", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getSummary()).contains("Unsupported");
@@ -103,7 +109,7 @@ class DocumentAnalyzerTest {
             };
 
             DocumentAnalysis result = analyzer.analyze(
-                    brokenStream, "image/jpeg", DocumentType.ID_CARD);
+                    brokenStream, "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getSummary()).contains("Could not read file content");
@@ -116,7 +122,7 @@ class DocumentAnalyzerTest {
             when(ocrProvider.extract(any(), any())).thenReturn("   ");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getSummary()).contains("no text");
@@ -132,13 +138,13 @@ class DocumentAnalyzerTest {
         @DisplayName("passes ID_CARD when enough patterns match")
         void idCardPasses() {
             when(ocrProvider.extract(any(), eq("image/jpeg"))).thenReturn(ID_CARD_TEXT);
-            when(extractor.supports(DocumentType.ID_CARD)).thenReturn(true);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
             when(extractor.extract(any())).thenReturn(fullIdentityDoc());
-            when(validationEngine.validate(any(), eq(DocumentType.ID_CARD)))
+            when(validationEngine.validate(any(), eq(DocumentType.IDENTITY_CARD)))
                     .thenReturn(ValidationResult.passed());
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isTrue();
             assertThat(result.getConfidenceScore()).isGreaterThanOrEqualTo(0.5);
@@ -151,7 +157,7 @@ class DocumentAnalyzerTest {
                     .thenReturn("lorem ipsum dolor sit amet");
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getExtractedDocument()).isNull();
@@ -164,12 +170,12 @@ class DocumentAnalyzerTest {
         void confidenceCalculation() {
             // ID_CARD has 8 patterns — "identity card id card identification" matches 4 = 0.5
             when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
-            when(extractor.supports(DocumentType.ID_CARD)).thenReturn(true);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
             when(extractor.extract(any())).thenReturn(fullIdentityDoc());
             when(validationEngine.validate(any(), any())).thenReturn(ValidationResult.passed());
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.getTotalPatterns()).isEqualTo(8);
             assertThat(result.getMatchedPatterns()).isGreaterThanOrEqualTo(4);
@@ -185,12 +191,12 @@ class DocumentAnalyzerTest {
         @DisplayName("populates extractedFields after successful extraction")
         void extractedFieldsPopulated() {
             when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
-            when(extractor.supports(DocumentType.ID_CARD)).thenReturn(true);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
             when(extractor.extract(any())).thenReturn(fullIdentityDoc());
             when(validationEngine.validate(any(), any())).thenReturn(ValidationResult.passed());
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.getExtractedFields()).isNotNull();
             assertThat(result.getExtractedFields()).containsKey("holderName");
@@ -200,13 +206,13 @@ class DocumentAnalyzerTest {
         @DisplayName("overrides passed=false when validation fails")
         void validationFailureOverridesPassed() {
             when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
-            when(extractor.supports(DocumentType.ID_CARD)).thenReturn(true);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
             when(extractor.extract(any())).thenReturn(fullIdentityDoc());
             when(validationEngine.validate(any(), any()))
                     .thenReturn(ValidationResult.failed(List.of("Document has expired.")));
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isFalse();
             assertThat(result.getValidationResult()).isNotNull();
@@ -218,10 +224,10 @@ class DocumentAnalyzerTest {
         @DisplayName("returns base result when no extractor supports the type")
         void noExtractorFound() {
             when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
-            when(extractor.supports(DocumentType.ID_CARD)).thenReturn(false);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(false);
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isTrue();
             assertThat(result.getExtractedDocument()).isNull();
@@ -233,11 +239,11 @@ class DocumentAnalyzerTest {
         @DisplayName("returns base result when extractor throws")
         void extractorThrows() {
             when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
-            when(extractor.supports(DocumentType.ID_CARD)).thenReturn(true);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
             when(extractor.extract(any())).thenThrow(new RuntimeException("Extractor crashed"));
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.isPassed()).isTrue();
             assertThat(result.getExtractedDocument()).isNull();
@@ -245,15 +251,66 @@ class DocumentAnalyzerTest {
         }
 
         @Test
-        @DisplayName("rawText is preserved in final result")
-        void rawTextPreserved() {
+        @DisplayName("populates fraudResult after successful extraction, even when clean")
+        void fraudResultPopulatedWhenClean() {
             when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
-            when(extractor.supports(DocumentType.ID_CARD)).thenReturn(true);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
             when(extractor.extract(any())).thenReturn(fullIdentityDoc());
             when(validationEngine.validate(any(), any())).thenReturn(ValidationResult.passed());
 
             DocumentAnalysis result = analyzer.analyze(
-                    stream("irrelevant"), "image/jpeg", DocumentType.ID_CARD);
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
+
+            assertThat(result.getFraudResult()).isNotNull();
+            assertThat(result.getFraudResult().suspicious()).isFalse();
+            verify(fraudDetectionEngine).detect(any(), eq(DocumentType.IDENTITY_CARD));
+        }
+
+        @Test
+        @DisplayName("a suspicious fraudResult does not by itself override passed=true")
+        void fraudSuspiciousDoesNotOverridePassed() {
+            when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
+            when(extractor.extract(any())).thenReturn(fullIdentityDoc());
+            when(validationEngine.validate(any(), any())).thenReturn(ValidationResult.passed());
+            when(fraudDetectionEngine.detect(any(), any()))
+                    .thenReturn(FraudDetectionResult.suspicious(List.of("Document number is suspicious.")));
+
+            DocumentAnalysis result = analyzer.analyze(
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
+
+            // DocumentAnalyzer never reacts to fraud on its own — that's KycOcrProcessor's job.
+            assertThat(result.isPassed()).isTrue();
+            assertThat(result.getFraudResult().suspicious()).isTrue();
+        }
+
+        @Test
+        @DisplayName("fraud detection still runs even when validation fails")
+        void fraudRunsEvenWhenValidationFails() {
+            when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
+            when(extractor.extract(any())).thenReturn(fullIdentityDoc());
+            when(validationEngine.validate(any(), any()))
+                    .thenReturn(ValidationResult.failed(List.of("Document has expired.")));
+
+            DocumentAnalysis result = analyzer.analyze(
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
+
+            assertThat(result.isPassed()).isFalse();
+            assertThat(result.getFraudResult()).isNotNull();
+            verify(fraudDetectionEngine).detect(any(), eq(DocumentType.IDENTITY_CARD));
+        }
+
+        @Test
+        @DisplayName("rawText is preserved in final result")
+        void rawTextPreserved() {
+            when(ocrProvider.extract(any(), any())).thenReturn(ID_CARD_TEXT);
+            when(extractor.supports(DocumentType.IDENTITY_CARD)).thenReturn(true);
+            when(extractor.extract(any())).thenReturn(fullIdentityDoc());
+            when(validationEngine.validate(any(), any())).thenReturn(ValidationResult.passed());
+
+            DocumentAnalysis result = analyzer.analyze(
+                    stream("irrelevant"), "image/jpeg", DocumentType.IDENTITY_CARD);
 
             assertThat(result.getRawText()).isEqualTo(ID_CARD_TEXT);
         }

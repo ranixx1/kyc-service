@@ -2,6 +2,7 @@ package com.example.kyc_service.service.analysis;
 
 import com.example.kyc_service.enums.DocumentType;
 import com.example.kyc_service.service.analysis.document.ExtractedDocument;
+import com.example.kyc_service.service.analysis.fraud.FraudDetectionResult;
 import com.example.kyc_service.service.analysis.validation.ValidationResult;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,10 +15,10 @@ import java.util.Map;
  * Step 1: rawText, confidenceScore, matchedPatterns, totalPatterns, passed, summary
  * Step 2: extractedDocument, extractedFields
  * Step 3: validationResult
+ * Step 4: fraudResult
  *
  * Future:
  * - score (int 0–100) — Step 7
- * - fraudIndicators   — Step 11
  */
 @Getter
 @Builder
@@ -42,4 +43,13 @@ public class DocumentAnalysis {
      * Null if validation was not attempted (e.g. OCR confidence too low).
      */
     private final ValidationResult validationResult;
+
+    /**
+     * Result of the fraud detection engine run.
+     * Null if fraud detection was not attempted (e.g. extraction failed).
+     * Note: this is informational/blocking only — it never triggers extraction
+     * or validation on its own, and it is never used to auto-APPROVE a document.
+     * A suspicious result always forces manual review, regardless of other results.
+     */
+    private final FraudDetectionResult fraudResult;
 }

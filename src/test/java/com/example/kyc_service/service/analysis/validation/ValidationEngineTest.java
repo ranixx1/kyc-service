@@ -42,7 +42,7 @@ class ValidationEngineTest {
     @Test
     @DisplayName("passes when all rules are satisfied")
     void passesWhenAllRulesSatisfied() {
-        ValidationResult result = engine.validate(fullDocument(), DocumentType.ID_CARD);
+        ValidationResult result = engine.validate(fullDocument(), DocumentType.IDENTITY_CARD);
         assertThat(result.valid()).isTrue();
         assertThat(result.errors()).isEmpty();
     }
@@ -55,7 +55,7 @@ class ValidationEngineTest {
                 .expiryDate("31/12/2030")
                 .build();
 
-        ValidationResult result = engine.validate(doc, DocumentType.ID_CARD);
+        ValidationResult result = engine.validate(doc, DocumentType.IDENTITY_CARD);
         assertThat(result.valid()).isFalse();
         assertThat(result.errors()).anyMatch(e -> e.contains("Holder name"));
     }
@@ -68,7 +68,7 @@ class ValidationEngineTest {
                 .expiryDate("31/12/2030")
                 .build();
 
-        ValidationResult result = engine.validate(doc, DocumentType.ID_CARD);
+        ValidationResult result = engine.validate(doc, DocumentType.IDENTITY_CARD);
         assertThat(result.valid()).isFalse();
         assertThat(result.errors()).anyMatch(e -> e.contains("Document number"));
     }
@@ -82,7 +82,7 @@ class ValidationEngineTest {
                 .expiryDate("01/01/2020")
                 .build();
 
-        ValidationResult result = engine.validate(doc, DocumentType.ID_CARD);
+        ValidationResult result = engine.validate(doc, DocumentType.IDENTITY_CARD);
         assertThat(result.valid()).isFalse();
         assertThat(result.errors()).anyMatch(e -> e.contains("expired"));
     }
@@ -92,7 +92,7 @@ class ValidationEngineTest {
     void collectsMultipleErrors() {
         IdentityDocument doc = IdentityDocument.builder().build(); // all nulls
 
-        ValidationResult result = engine.validate(doc, DocumentType.ID_CARD);
+        ValidationResult result = engine.validate(doc, DocumentType.IDENTITY_CARD);
         assertThat(result.valid()).isFalse();
         assertThat(result.errors().size()).isGreaterThan(1);
     }

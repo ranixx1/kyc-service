@@ -3,6 +3,8 @@ package com.example.kyc_service.service.analysis;
 import com.example.kyc_service.enums.DocumentType;
 import com.example.kyc_service.service.analysis.document.ExtractedDocument;
 import com.example.kyc_service.service.analysis.extractor.DocumentExtractor;
+import com.example.kyc_service.service.analysis.fraud.FraudDetectionEngine;
+import com.example.kyc_service.service.analysis.fraud.FraudDetectionResult;
 import com.example.kyc_service.service.analysis.validation.ValidationEngine;
 import com.example.kyc_service.service.analysis.validation.ValidationResult;
 import com.example.kyc_service.service.ocr.OcrProvider;
@@ -19,15 +21,19 @@ import java.util.Map;
 /**
  * Orchestrates the document analysis pipeline.
  *
- * Current pipeline (Step 3):
+ * Current pipeline (Step 4):
  *   1. Extract raw text via OcrProvider
  *   2. Evaluate text against expected patterns (confidence score)
  *   3. Run the appropriate DocumentExtractor
  *   4. Run the ValidationEngine against extracted fields
- *   5. Produce a DocumentAnalysis with typed fields and validation result
+ *   5. Run the FraudDetectionEngine against extracted fields
+ *   6. Produce a DocumentAnalysis with typed fields, validation and fraud results
+ *
+ * Note: fraud detection runs whenever extraction succeeds, even if validation
+ * failed — a flagged indicator is still useful context for the analyst even
+ * when the submission is already headed to manual review for other reasons.
  *
  * Future (Steps 5–7):
- *   6. Run FraudDetection
  *   7. Compute numeric score (0–100)
  */
 @Service
@@ -40,6 +46,7 @@ public class DocumentAnalyzer {
     private final OcrProvider ocrProvider;
     private final List<DocumentExtractor> extractors;
     private final ValidationEngine validationEngine;
+    private final FraudDetectionEngine fraudDetectionEngine;
 
     public DocumentAnalysis analyze(InputStream fileStream, String mimeType,
                                     DocumentType documentType) {
@@ -139,7 +146,13 @@ public class DocumentAnalyzer {
         log.info("Validation complete. documentType={}, valid={}, errors={}",
                 documentType, validation.valid(), validation.errorCount());
 
-        // If validation fails, override the passed flag — document goes to MANUAL review
+        FraudDetectionResult fraud = fraudDetectionEngine.detect(extracted, documentType);
+        log.info("Fraud detection complete. documentType={}, suspicious={}, indicators={}",
+                documentType, fraud.suspicious(), fraud.indicatorCount());
+
+        // If validation fails, override the passed flag — document goes to MANUAL review.
+        // Fraud indicators never flip "passed" here; KycOcrProcessor decides how to react
+        // to a suspicious fraudResult (it forces MANUAL and blocks auto-decision).
         boolean finalPassed = base.isPassed() && validation.valid();
         String finalSummary = finalPassed
                 ? base.getSummary()
@@ -156,6 +169,7 @@ public class DocumentAnalyzer {
                 .extractedDocument(extracted)
                 .extractedFields(fields)
                 .validationResult(validation)
+                .fraudResult(fraud)
                 .build();
     }
 

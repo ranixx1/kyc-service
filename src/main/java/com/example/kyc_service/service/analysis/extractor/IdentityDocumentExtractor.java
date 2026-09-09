@@ -10,7 +10,7 @@ public class IdentityDocumentExtractor extends BaseExtractor {
 
     @Override
     public boolean supports(DocumentType type) {
-        return type == DocumentType.ID_CARD;
+        return type == DocumentType.IDENTITY_CARD;
     }
 
     @Override

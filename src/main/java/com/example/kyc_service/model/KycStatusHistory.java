@@ -55,6 +55,17 @@ public class KycStatusHistory {
         return build(submission, previous, next, analystId, analystUsername);
     }
 
+    /**
+     * System-driven APPROVE/REJECT decision (no human analyst involved),
+     * made by KycAutoDecisionEngine when extracted data matches (or doesn't
+     * match) a pre-registered KycExpectedData record.
+     */
+    public static KycStatusHistory byAutoDecision(KycSubmission submission,
+                                                   SubmissionStatus previous,
+                                                   SubmissionStatus next) {
+        return build(submission, previous, next, null, "SYSTEM_AUTO_DECISION");
+    }
+
     private static KycStatusHistory build(KycSubmission submission,
                                           SubmissionStatus previous,
                                           SubmissionStatus next,
