@@ -85,4 +85,35 @@ class IdentityDocumentExtractorTest {
         assertThat(doc.getDateOfBirth()).isEqualTo("20/03/1985");
         assertThat(doc.getExpiryDate()).isEqualTo("15/08/2028");
     }
+
+    @Test
+    @DisplayName("extracts documentNumber from a CPF label (RG brasileiro real)")
+    void extractsDocumentNumberFromCpfLabel() {
+        // This is the actual shape of a Brazilian RG/identity document: it shows
+        // "CPF:", not "Document Number:" or "Registro:". Before this label was
+        // added, documentNumber came back null for every real RG, which failed
+        // DocumentNumberPresentRule and sent every identity submission straight
+        // to MANUAL — never reaching auto-decision.
+        String rgText =
+                "REPÚBLICA FEDERATIVA DO BRASIL\n" +
+                "Nome: Joao da Silva\n" +
+                "CPF: 707.098.093-89\n" +
+                "Data de Nascimento: 01/01/1990";
+
+        IdentityDocument doc = (IdentityDocument) extractor.extract(rgText);
+        assertThat(doc.getHolderName()).isEqualTo("Joao da Silva");
+        assertThat(doc.getDocumentNumber()).isEqualTo("707.098.093-89");
+    }
+
+    @Test
+    @DisplayName("prefers CPF over a generic 'number' label when both are present")
+    void cpfTakesPriorityOverGenericNumberLabel() {
+        String text =
+                "Name: Joao da Silva\n" +
+                "Number: SOME-INTERNAL-CODE-123\n" +
+                "CPF: 707.098.093-89";
+
+        IdentityDocument doc = (IdentityDocument) extractor.extract(text);
+        assertThat(doc.getDocumentNumber()).isEqualTo("707.098.093-89");
+    }
 }
