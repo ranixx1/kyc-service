@@ -21,8 +21,9 @@ public class IdentityDocumentExtractor extends BaseExtractor {
                 .holderName(extractAfterLabel(text,
                         "name", "full name", "nome", "nome completo", "titular"))
                 .documentNumber(extractAfterLabel(text,
-                        "document number", "id number", "number", "número", "registro",
-                        "doc no", "id no"))
+                        "cpf", "rg", "registro geral", "número do documento",
+                        "document number", "id number", "número", "registro",
+                        "doc no", "id no", "number"))
                 .dateOfBirth(extractDate(text,
                         "date of birth", "birth date", "born", "dob",
                         "data de nascimento", "nascimento"))
